@@ -38,6 +38,10 @@ class KeyPair:
         sk = (d, n)
         return sk, pk
 
+    def __repr__(self):
+        """String representation of key pair"""
+        return f"Secret key is: {self.sk}\nPublic key is: {self.pk}"
+
 
 class Signature:
     """This class contains methods for digital signing and verifying digital sign"""
@@ -55,4 +59,40 @@ class Signature:
         return msg == (sig ** e) % n
 
 
+class Account:
+    """This class determines system's user account"""
+    acc_id_counter = 1 # this variable increments whenever new account is created
+
+    def __init__(self):
+        self.accountID = Account.acc_id_counter
+        Account.acc_id_counter += 1
+        self.wallet = [KeyPair()]
+        self.balance = 0
+
+    def genAccount(self):
+        return Account()
+
+    def addKeyPairToWallet(self):
+        self.wallet.append(KeyPair())
+
+    def updateBalance(self, value: int):
+        self.balance = value
+
+    def createPaymentOp(self, pay_to_acc, amount, key_ix):
+        ... # this method will be updated after adding Operation class
+
+    def getBalance(self):
+        return self.balance
+
+    def printBalance(self):
+        print(self.balance)
+
+    def signData(self, data, key_ix):
+        kp = self.wallet[key_ix]
+        S = Signature.sign(kp.sk, data)
+        return S
+
+    def __repr__(self):
+        """String representation of account"""
+        return f"Account id: {self.accountID}\nAccount balance: {self.balance}"
 
