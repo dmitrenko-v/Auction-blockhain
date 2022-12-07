@@ -1,6 +1,27 @@
 import secrets
 from service import is_prime, nsd, find_reverse
 
+class Item:
+    """This class defines item on auction"""
+    item_id_counter = 1
+
+    def __init__(self, initial_price, name):
+        self.price = initial_price
+        self.id = Item.item_id_counter
+        Item.item_id_counter += 1
+        self.name = name
+        self.prev_price = self.price
+
+    def correct_bid(self, new_price):
+        if new_price > self.prev_price:
+            self.prev_price, self.price = self.price, new_price
+            return True
+        else:
+            return False
+
+    def __repr__(self):
+        """String representation of item"""
+        return f"Name: {self.name}\nPrevious price: {self.prev_price}\nCurrent price: {self.price}\nItem id: {self.id}"
 
 class KeyPair:
     """This class identifies single public and private key pair"""
@@ -69,17 +90,15 @@ class Account:
         self.wallet = [KeyPair()]
         self.balance = 0
 
-    def genAccount(self):
-        return Account()
-
     def addKeyPairToWallet(self):
         self.wallet.append(KeyPair())
 
     def updateBalance(self, value: int):
         self.balance = value
 
-    def createPaymentOp(self, pay_to_acc, amount, key_ix):
-        ... # this method will be updated after adding Operation class
+    def createPaymentOp(self, amount, key_ix, item, data):
+        """data: data for digital signature"""
+        return Operation(self, amount, self.signData(data, key_ix), item)
 
     def getBalance(self):
         return self.balance
@@ -96,3 +115,38 @@ class Account:
         """String representation of account"""
         return f"Account id: {self.accountID}\nAccount balance: {self.balance}"
 
+
+class Operation:
+    """This class describes single operation"""
+    operation_id = 1
+
+    def __init__(self, sender: Account, amount, sig, item: Item):
+        self.id = Operation.operation_id
+        Operation.operation_id += 1
+        self.sender = sender
+        self.amount = amount
+        self.sig = sig
+        self.item = item
+
+    @staticmethod
+    def verifyOperation(op, data, key_ix):
+        """data: data to verify signature
+           key_ix: key index in account's key wallet to verify signature"""
+        return op.amount <= op.sender.balance and Signature.verifySig(op.sig, op.sender.wallet[key_ix].pk, data) and op.item.correct_bid(op.amount)
+
+    def __repr__(self):
+        """String representation of operation"""
+        return f"Operation id:{self.id}\nOperation amount: {self.amount}\n{str(self.sender)}\n{str(self.item)}"
+
+
+class Transaction:
+    transaction_id = 1
+
+    def __init__(self, nonce: int, set_of_operations: [Operation]):
+        self.id = Transaction.transaction_id
+        self.set_of_operations = set_of_operations
+        self.nonce = nonce
+
+    def __repr__(self):
+        """String representation of operation"""
+        return f"Transaction id: {self.id}\nOperations list:{self.set_of_operations}\nNonce: {self.nonce}"
