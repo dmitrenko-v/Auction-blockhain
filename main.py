@@ -15,11 +15,11 @@ class Item:
         self.prev_price = self.price
 
     def correct_bid(self, new_price):
-        if new_price > self.prev_price:
-            self.prev_price, self.price = self.price, new_price
-            return True
-        else:
-            return False
+        return new_price > self.prev_price
+
+    def new_price(self, price):
+        if self.correct_bid(price):
+            self.prev_price, self.price = self.price, price
 
     def __repr__(self):
         """String representation of item"""
@@ -146,6 +146,7 @@ class Transaction:
 
     def __init__(self, set_of_operations: [Operation]):
         self.id = Transaction.transaction_id
+        Transaction.transaction_id += 1
         self.set_of_operations = set_of_operations
 
 
@@ -178,11 +179,13 @@ class Blockchain:
         self.txDatabase = []
 
     def initBlockchain(self):
+        """This function creating genesis block in blockchain(initializing blockchain)"""
         GenesisBlock = Block("0"*40, [])
         self.blockHistory.append(GenesisBlock)
 
     def validateBlock(self, block: Block):
-        if block.prevHash == self.blockHistory[-1].blockId and block.setOfTransactions <= 7:
+        """This function validates/not validates given block and add/doesn't add it to blockchain"""
+        if block.prevHash == self.blockHistory[-1].blockId and len(block.setOfTransactions) <= 7:
             for tr in block.setOfTransactions:
                 if block.setOfTransactions.count(tr) > 1:
                     print("There are conflicting transactions")
@@ -192,18 +195,34 @@ class Blockchain:
                     return False
         else:
             print("Block hash didn't match last block hash or there are too many transactions")
+            return False
 
+        local_story = dict()
 
-       # if block is valid, we need to update txDatabase and coinDatabase
+        # conflicting transactions detection block
         for tr in block.setOfTransactions:
             for op in tr.set_of_operations:
+                if op.sender not in local_story:
+                    local_story[op.sender] = op.sender.balance - op.amount
+                else:
+                    local_story[op.sender] -= op.amount
                 if not Operation.verifyOperation(op, 0):
                     print("Block is invalid.There are invalid transactions")
                     return False
-                if not op.item.correct_bid(op.amount):
+            for acc in local_story:
+                if local_story[acc] < 0:
                     print("Block is invalid.There are invalid transactions")
                     return False
+        for acc in local_story:
+            if local_story[acc] < 0:
+                print("Block is invalid.There are invalid transactions")
+                return False
+
+        # if block is valid, then update coinDatabase and account balances
+        for tr in block.setOfTransactions:
+            for op in tr.set_of_operations:
                 op.sender.balance -= op.amount
+                op.item.new_price(op.amount)
                 self.coinDatabase[op.sender] = op.sender.balance
 
         self.txDatabase.extend(block.setOfTransactions)
@@ -211,6 +230,7 @@ class Blockchain:
         print("Block is created")
 
     def getTokenFromFaucet(self):
+        """This function gives every user of blockchain test tokens"""
         for acc in self.coinDatabase:
             self.coinDatabase[acc] += self.faucetCoins
             acc.balance += self.faucetCoins
@@ -218,12 +238,8 @@ class Blockchain:
     def getCoinDatabase(self):
         print(self.coinDatabase)
 
+    def __repr__(self):
+        return str(self.blockHistory)
 
 
 
-item = Item(2, "Aerogrill")
-acc = Account()
-acc.updateBalance(5)
-
-op = Operation(acc, 3, acc.signData(0), item)
-Block(0, [op])
