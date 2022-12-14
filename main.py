@@ -1,6 +1,8 @@
+import hashlib
 import secrets
 from service import is_prime, nsd, find_reverse
 
+data = 5
 class Item:
     """This class defines item on auction"""
     item_id_counter = 1
@@ -67,17 +69,17 @@ class KeyPair:
 class Signature:
     """This class contains methods for digital signing and verifying digital sign"""
     @staticmethod
-    def sign(sk, msg):
+    def sign(sk):
         d = sk[0]
         n = sk[1]
-        S = (msg ** d) % n
+        S = (data ** d) % n
         return S
 
     @staticmethod
-    def verifySig(sig, pk, msg):
+    def verifySig(sig, pk):
         e = pk[0]
         n = pk[1]
-        return msg == (sig ** e) % n
+        return data == (sig ** e) % n
 
 
 class Account:
@@ -96,9 +98,9 @@ class Account:
     def updateBalance(self, value: int):
         self.balance = value
 
-    def createPaymentOp(self, amount, key_ix, item, data):
+    def createPaymentOp(self, amount, key_ix, item):
         """data: data for digital signature"""
-        return Operation(self, amount, self.signData(data, key_ix), item)
+        return Operation(self, amount, self.signData(key_ix), item)
 
     def getBalance(self):
         return self.balance
@@ -106,9 +108,9 @@ class Account:
     def printBalance(self):
         print(self.balance)
 
-    def signData(self, data, key_ix):
+    def signData(self, key_ix):
         kp = self.wallet[key_ix]
-        S = Signature.sign(kp.sk, data)
+        S = Signature.sign(kp.sk)
         return S
 
     def __repr__(self):
@@ -129,10 +131,10 @@ class Operation:
         self.item = item
 
     @staticmethod
-    def verifyOperation(op, data, key_ix):
+    def verifyOperation(op, key_ix):
         """data: data to verify signature
            key_ix: key index in account's key wallet to verify signature"""
-        return op.amount <= op.sender.balance and Signature.verifySig(op.sig, op.sender.wallet[key_ix].pk, data) and op.item.correct_bid(op.amount)
+        return op.amount <= op.sender.balance and Signature.verifySig(op.sig, op.sender.wallet[key_ix].pk) and op.item.correct_bid(op.amount)
 
     def __repr__(self):
         """String representation of operation"""
@@ -142,11 +144,86 @@ class Operation:
 class Transaction:
     transaction_id = 1
 
-    def __init__(self, nonce: int, set_of_operations: [Operation]):
+    def __init__(self, set_of_operations: [Operation]):
         self.id = Transaction.transaction_id
         self.set_of_operations = set_of_operations
-        self.nonce = nonce
+
 
     def __repr__(self):
         """String representation of operation"""
-        return f"Transaction id: {self.id}\nOperations list:{self.set_of_operations}\nNonce: {self.nonce}"
+        return f"Transaction id: {self.id}\nOperations list:{self.set_of_operations}\n"
+
+
+class Block:
+    block_id = b"0"
+    """This class defines block in blockchain"""
+    def __init__(self, prevHash, setOfTransactions: [Transaction]):
+        id = hashlib.sha1()
+        id.update(Block.block_id)
+        self.blockId = id.hexdigest()
+        Block.block_id += b"0"
+        self.prevHash = prevHash
+        self.setOfTransactions = setOfTransactions
+
+    def __repr__(self):
+        return f"Block id: {self.blockId}\nPrevious block hash: {self.prevHash}\nTransactions: {self.setOfTransactions}"
+
+
+class Blockchain:
+    faucetCoins = 5
+
+    def __init__(self):
+        self.coinDatabase = dict()
+        self.blockHistory = []
+        self.txDatabase = []
+
+    def initBlockchain(self):
+        GenesisBlock = Block("0"*40, [])
+        self.blockHistory.append(GenesisBlock)
+
+    def validateBlock(self, block: Block):
+        if block.prevHash == self.blockHistory[-1].blockId and block.setOfTransactions <= 7:
+            for tr in block.setOfTransactions:
+                if block.setOfTransactions.count(tr) > 1:
+                    print("There are conflicting transactions")
+                    return False
+                if tr in self.txDatabase:
+                    print("Block is invalid. Transaction is already in blockchain")
+                    return False
+        else:
+            print("Block hash didn't match last block hash or there are too many transactions")
+
+
+       # if block is valid, we need to update txDatabase and coinDatabase
+        for tr in block.setOfTransactions:
+            for op in tr.set_of_operations:
+                if not Operation.verifyOperation(op, 0):
+                    print("Block is invalid.There are invalid transactions")
+                    return False
+                if not op.item.correct_bid(op.amount):
+                    print("Block is invalid.There are invalid transactions")
+                    return False
+                op.sender.balance -= op.amount
+                self.coinDatabase[op.sender] = op.sender.balance
+
+        self.txDatabase.extend(block.setOfTransactions)
+        self.blockHistory.append(block)
+        print("Block is created")
+
+    def getTokenFromFaucet(self):
+        for acc in self.coinDatabase:
+            self.coinDatabase[acc] += self.faucetCoins
+            acc.balance += self.faucetCoins
+
+    def getCoinDatabase(self):
+        print(self.coinDatabase)
+
+
+
+
+item = Item(2, "Aerogrill")
+acc = Account()
+acc.updateBalance(5)
+
+op = Operation(acc, 3, acc.signData(0), item)
+Block(0, [op])
